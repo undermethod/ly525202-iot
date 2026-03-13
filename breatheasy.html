@@ -1,0 +1,1113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BreathEasy - CESI Lyon Climate Control</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Inter', sans-serif; background: #0a0a0f; color: #f1f5f9; min-height: 100vh; }
+        
+        .banner { padding: 12px 20px; display: flex; align-items: center; justify-content: center; gap: 10px; font-size: 13px; font-weight: 500; }
+        .banner.connected { background: rgba(16, 185, 129, 0.15); color: #10b981; border-bottom: 1px solid rgba(16, 185, 129, 0.3); }
+        .banner.disconnected { background: rgba(239, 68, 68, 0.15); color: #ef4444; border-bottom: 1px solid rgba(239, 68, 68, 0.3); }
+        .banner.connecting { background: rgba(249, 115, 22, 0.15); color: #f97316; border-bottom: 1px solid rgba(249, 115, 22, 0.3); }
+        .banner button { background: rgba(255, 255, 255, 0.15); border: none; color: inherit; padding: 5px 14px; border-radius: 5px; cursor: pointer; margin-left: 10px; font-size: 12px; }
+
+        .login-wrapper { min-height: 100vh; display: flex; align-items: center; justify-content: center; background: radial-gradient(ellipse at 50% 0%, rgba(59, 130, 246, 0.12), transparent 60%), #0a0a0f; padding: 20px; }
+        .login-card { background: #111118; border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 20px; padding: 40px; width: 100%; max-width: 460px; }
+        .logo { text-align: center; margin-bottom: 30px; }
+        .logo-icon { width: 70px; height: 70px; background: linear-gradient(135deg, #3b82f6, #06b6d4); border-radius: 16px; display: flex; align-items: center; justify-content: center; margin: 0 auto 16px; font-size: 30px; box-shadow: 0 0 30px rgba(59, 130, 246, 0.4); }
+        .logo h1 { font-size: 26px; background: linear-gradient(135deg, #3b82f6, #06b6d4); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .logo p { color: #64748b; font-size: 14px; margin-top: 5px; }
+        
+        .form-group { margin-bottom: 18px; }
+        .form-group label { display: block; font-size: 13px; font-weight: 500; color: #94a3b8; margin-bottom: 8px; }
+        .input-wrapper { position: relative; }
+        .input-wrapper i { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: #64748b; }
+        .form-input { width: 100%; padding: 13px 14px 13px 42px; background: #1a1a24; border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 10px; color: #f1f5f9; font-size: 14px; font-family: inherit; }
+        .form-input:focus { outline: none; border-color: #3b82f6; }
+        
+        .roles { display: flex; gap: 12px; margin-top: 8px; }
+        .role-btn { flex: 1; padding: 16px; background: #1a1a24; border: 2px solid rgba(255, 255, 255, 0.1); border-radius: 12px; cursor: pointer; text-align: center; }
+        .role-btn:hover { border-color: rgba(255, 255, 255, 0.2); }
+        .role-btn.active { border-color: #3b82f6; background: rgba(59, 130, 246, 0.1); }
+        .role-btn i { font-size: 24px; margin-bottom: 6px; display: block; }
+        .role-btn.viewer i { color: #06b6d4; }
+        .role-btn.admin i { color: #8b5cf6; }
+        .role-btn span { font-size: 12px; font-weight: 500; }
+        
+        .login-btn { width: 100%; padding: 14px; background: linear-gradient(135deg, #3b82f6, #06b6d4); border: none; border-radius: 10px; color: white; font-size: 15px; font-weight: 600; cursor: pointer; margin-top: 10px; }
+        .login-btn:hover { box-shadow: 0 0 25px rgba(59, 130, 246, 0.5); }
+        
+        .error-msg { background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); color: #ef4444; padding: 12px; border-radius: 8px; font-size: 13px; margin-bottom: 16px; }
+        
+        .config-box { background: #1a1a24; border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px; padding: 16px; margin-bottom: 18px; }
+        .config-title { font-size: 11px; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+        .config-title i { color: #06b6d4; }
+        .config-badge { background: rgba(16, 185, 129, 0.2); color: #10b981; padding: 3px 8px; border-radius: 4px; font-size: 10px; margin-left: auto; }
+        .config-info { font-size: 12px; color: #64748b; line-height: 1.8; }
+        .config-info code { background: #0a0a0f; padding: 3px 6px; border-radius: 4px; color: #06b6d4; }
+
+        .dashboard { display: flex; min-height: 100vh; flex-direction: column; }
+        .dashboard-body { display: flex; flex: 1; }
+        
+        .sidebar { width: 250px; background: #111118; border-right: 1px solid rgba(255, 255, 255, 0.08); display: flex; flex-direction: column; position: fixed; height: calc(100vh - 44px); top: 44px; }
+        .sidebar-header { padding: 18px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); }
+        .sidebar-logo { display: flex; align-items: center; gap: 12px; }
+        .sidebar-logo-icon { width: 38px; height: 38px; background: linear-gradient(135deg, #3b82f6, #06b6d4); border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 17px; }
+        .sidebar-logo h2 { font-size: 17px; font-weight: 700; }
+        .sidebar-logo span { font-size: 10px; color: #06b6d4; text-transform: uppercase; letter-spacing: 1px; }
+        
+        .sidebar-nav { flex: 1; overflow-y: auto; padding: 12px; }
+        .nav-section { margin-bottom: 20px; }
+        .nav-title { font-size: 10px; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 1.5px; padding: 8px 12px; }
+        .nav-item { display: flex; align-items: center; gap: 10px; padding: 11px 14px; border-radius: 10px; cursor: pointer; color: #94a3b8; font-size: 13px; margin-bottom: 3px; }
+        .nav-item:hover { background: #1a1a24; color: #f1f5f9; }
+        .nav-item.active { background: rgba(59, 130, 246, 0.15); color: #3b82f6; }
+        
+        .status-dot { width: 8px; height: 8px; border-radius: 50%; }
+        .status-dot.online { background: #10b981; box-shadow: 0 0 8px #10b981; }
+        .status-dot.warning { background: #f97316; }
+        .status-dot.critical { background: #ef4444; }
+        .status-dot.offline { background: #64748b; }
+        
+        .sidebar-footer { padding: 12px; border-top: 1px solid rgba(255, 255, 255, 0.08); }
+        .user-card { display: flex; align-items: center; gap: 10px; padding: 10px; background: #1a1a24; border-radius: 10px; }
+        .avatar { width: 34px; height: 34px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 14px; }
+        .avatar.admin { background: linear-gradient(135deg, #8b5cf6, #ec4899); }
+        .avatar.viewer { background: linear-gradient(135deg, #3b82f6, #06b6d4); }
+        .user-info { flex: 1; }
+        .user-info h4 { font-size: 13px; font-weight: 600; }
+        .user-info span { font-size: 11px; color: #64748b; }
+        .logout-btn { background: none; border: none; color: #64748b; cursor: pointer; padding: 6px; border-radius: 6px; }
+        .logout-btn:hover { color: #ef4444; }
+
+        .main-content { flex: 1; margin-left: 250px; display: flex; flex-direction: column; margin-top: 44px; }
+        .header { height: 60px; background: #111118; border-bottom: 1px solid rgba(255, 255, 255, 0.08); display: flex; align-items: center; justify-content: space-between; padding: 0 24px; position: sticky; top: 44px; z-index: 50; }
+        .header-left h1 { font-size: 17px; font-weight: 600; }
+        .header-left span { font-size: 12px; color: #64748b; }
+        .header-right { display: flex; align-items: center; gap: 12px; }
+        
+        .live-badge { display: flex; align-items: center; gap: 6px; padding: 7px 14px; border-radius: 8px; font-size: 12px; font-weight: 500; }
+        .live-badge.online { background: rgba(16, 185, 129, 0.15); border: 1px solid rgba(16, 185, 129, 0.3); color: #10b981; }
+        .live-badge.offline { background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); color: #ef4444; }
+        .pulse-dot { width: 8px; height: 8px; border-radius: 50%; }
+        .pulse-dot.online { background: #10b981; animation: pulse 2s infinite; }
+        .pulse-dot.offline { background: #ef4444; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+        
+        .time-display { font-family: monospace; font-size: 13px; color: #94a3b8; background: #1a1a24; padding: 6px 12px; border-radius: 6px; }
+
+        .content { flex: 1; padding: 24px; overflow-y: auto; }
+        
+        .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
+        .stat-card { background: #111118; border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 14px; padding: 18px; position: relative; overflow: hidden; }
+        .stat-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; }
+        .stat-card.blue::before { background: linear-gradient(90deg, #3b82f6, #06b6d4); }
+        .stat-card.green::before { background: linear-gradient(90deg, #10b981, #06b6d4); }
+        .stat-card.orange::before { background: linear-gradient(90deg, #f97316, #eab308); }
+        .stat-card.purple::before { background: linear-gradient(90deg, #8b5cf6, #ec4899); }
+        .stat-icon { width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 16px; margin-bottom: 12px; }
+        .stat-card.blue .stat-icon { background: rgba(59, 130, 246, 0.15); color: #3b82f6; }
+        .stat-card.green .stat-icon { background: rgba(16, 185, 129, 0.15); color: #10b981; }
+        .stat-card.orange .stat-icon { background: rgba(249, 115, 22, 0.15); color: #f97316; }
+        .stat-card.purple .stat-icon { background: rgba(139, 92, 246, 0.15); color: #8b5cf6; }
+        .stat-value { font-size: 26px; font-weight: 700; font-family: monospace; }
+        .stat-label { color: #94a3b8; font-size: 12px; margin-top: 2px; }
+        .stat-sub { font-size: 11px; color: #64748b; margin-top: 5px; }
+
+        .section { margin-bottom: 24px; }
+        .section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+        .section-title { font-size: 15px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+        .section-title i { color: #3b82f6; }
+        
+        .btn { padding: 10px 18px; border-radius: 8px; font-size: 13px; font-weight: 500; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; font-family: inherit; border: none; }
+        .btn-primary { background: linear-gradient(135deg, #3b82f6, #06b6d4); color: white; }
+        .btn-primary:hover { box-shadow: 0 0 20px rgba(59, 130, 246, 0.4); }
+        .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+        .btn-secondary { background: #1a1a24; border: 1px solid rgba(255, 255, 255, 0.1); color: #94a3b8; }
+        .btn-secondary:hover { background: #252532; color: #f1f5f9; }
+        .btn-danger { background: rgba(239, 68, 68, 0.15); color: #ef4444; }
+        .btn-danger:hover { background: rgba(239, 68, 68, 0.25); }
+
+        .rooms-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 18px; }
+        .room-card { background: #111118; border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 16px; overflow: hidden; }
+        .room-card.inactive { opacity: 0.5; }
+        .room-header { padding: 16px 18px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid rgba(255, 255, 255, 0.08); background: #1a1a24; }
+        .room-info h3 { font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+        .room-color-dot { width: 12px; height: 12px; border-radius: 50%; }
+        .room-info span { font-size: 11px; color: #64748b; font-family: monospace; }
+        
+        .room-badge { padding: 4px 10px; border-radius: 12px; font-size: 10px; font-weight: 600; text-transform: uppercase; }
+        .room-badge.optimal { background: rgba(16, 185, 129, 0.15); color: #10b981; }
+        .room-badge.warning { background: rgba(249, 115, 22, 0.15); color: #f97316; }
+        .room-badge.critical { background: rgba(239, 68, 68, 0.15); color: #ef4444; }
+        .room-badge.offline { background: rgba(100, 100, 100, 0.15); color: #64748b; }
+        
+        .room-body { padding: 18px; }
+        .metrics-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+        .metric-box { background: #1a1a24; border-radius: 10px; padding: 14px 10px; text-align: center; }
+        .metric-icon { font-size: 20px; margin-bottom: 6px; }
+        .metric-icon.temp { color: #f97316; }
+        .metric-icon.humidity { color: #06b6d4; }
+        .metric-icon.pressure { color: #8b5cf6; }
+        .metric-value { font-size: 20px; font-weight: 700; font-family: monospace; }
+        .metric-label { font-size: 10px; color: #64748b; margin-top: 3px; }
+        
+        .room-footer { padding: 14px 18px; background: #0a0a0f; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
+        .actuators { display: flex; gap: 10px; flex-wrap: wrap; }
+        .actuator { display: flex; align-items: center; gap: 5px; font-size: 11px; padding: 5px 10px; border-radius: 6px; background: #1a1a24; }
+        .actuator.on { background: rgba(16, 185, 129, 0.15); color: #10b981; }
+        .actuator.off { color: #64748b; }
+        .last-update { font-size: 10px; color: #64748b; }
+
+        .charts-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 18px; }
+        .chart-card { background: #111118; border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 16px; padding: 18px; }
+        .chart-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; flex-wrap: wrap; gap: 10px; }
+        .chart-title { font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+        .chart-title i { color: #06b6d4; }
+        .chart-legend { display: flex; gap: 14px; flex-wrap: wrap; }
+        .legend-item { display: flex; align-items: center; gap: 6px; font-size: 11px; color: #94a3b8; }
+        .legend-dot { width: 8px; height: 8px; border-radius: 50%; }
+        .chart-area { height: 200px; background: #1a1a24; border-radius: 10px; padding: 10px; position: relative; }
+        
+        .variance-box { padding: 14px; background: #1a1a24; border-radius: 10px; }
+        .variance-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+        .variance-label { font-size: 11px; color: #64748b; }
+        .variance-value { font-size: 24px; font-weight: 700; font-family: monospace; margin-bottom: 6px; }
+        .variance-value.low { color: #10b981; }
+        .variance-value.medium { color: #f97316; }
+        .variance-value.high { color: #ef4444; }
+        .variance-bar { height: 5px; background: #0a0a0f; border-radius: 3px; overflow: hidden; margin-bottom: 6px; }
+        .variance-fill { height: 100%; border-radius: 3px; }
+        .variance-fill.low { background: #10b981; }
+        .variance-fill.medium { background: #f97316; }
+        .variance-fill.high { background: #ef4444; }
+        .variance-status { font-size: 10px; padding: 3px 8px; border-radius: 4px; }
+        .variance-status.stable { background: rgba(16, 185, 129, 0.15); color: #10b981; }
+        .variance-status.moderate { background: rgba(249, 115, 22, 0.15); color: #f97316; }
+        .variance-status.unstable { background: rgba(239, 68, 68, 0.15); color: #ef4444; }
+
+        .admin-card { background: #111118; border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 16px; padding: 20px; }
+        .admin-title { font-size: 15px; font-weight: 600; margin-bottom: 6px; display: flex; align-items: center; gap: 8px; }
+        .admin-title i { color: #8b5cf6; }
+        .admin-desc { font-size: 13px; color: #64748b; margin-bottom: 20px; }
+        .admin-desc code { background: #1a1a24; padding: 3px 7px; border-radius: 4px; color: #06b6d4; font-family: monospace; }
+        
+        .threshold-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+        .threshold-box { background: #1a1a24; border-radius: 12px; padding: 16px; }
+        .threshold-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 14px; }
+        .threshold-label { font-size: 12px; color: #94a3b8; margin-bottom: 4px; }
+        .threshold-desc { font-size: 10px; color: #64748b; }
+        .threshold-value { font-size: 28px; font-weight: 700; font-family: monospace; }
+        .threshold-value.temp { color: #f97316; }
+        .threshold-value.cool { color: #06b6d4; }
+        .threshold-value.humidity { color: #3b82f6; }
+        
+        .slider { width: 100%; height: 6px; background: #0a0a0f; border-radius: 3px; -webkit-appearance: none; cursor: pointer; margin-top: 8px; }
+        .slider::-webkit-slider-thumb { -webkit-appearance: none; width: 18px; height: 18px; background: #3b82f6; border-radius: 50%; cursor: pointer; }
+        .slider-range { display: flex; justify-content: space-between; font-size: 10px; color: #64748b; margin-top: 6px; }
+        
+        .save-section { margin-top: 24px; padding-top: 20px; border-top: 1px solid rgba(255, 255, 255, 0.08); display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+        .command-preview { flex: 1; min-width: 280px; background: #1a1a24; border-radius: 8px; padding: 12px; font-family: monospace; font-size: 11px; color: #10b981; word-break: break-all; }
+        .command-preview .label { color: #64748b; font-family: 'Inter', sans-serif; margin-bottom: 4px; display: block; }
+
+        .log-card { background: #111118; border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 16px; overflow: hidden; }
+        .log-header { padding: 14px 18px; background: #1a1a24; border-bottom: 1px solid rgba(255, 255, 255, 0.08); display: flex; align-items: center; justify-content: space-between; }
+        .log-title { font-size: 14px; font-weight: 600; }
+        .log-body { max-height: 400px; overflow-y: auto; }
+        .log-entry { padding: 10px 18px; border-bottom: 1px solid rgba(255, 255, 255, 0.05); display: grid; grid-template-columns: 75px 1fr auto; gap: 12px; font-family: monospace; font-size: 11px; }
+        .log-entry:hover { background: #1a1a24; }
+        .log-entry.sent { background: rgba(59, 130, 246, 0.1); }
+        .log-time { color: #64748b; }
+        .log-topic { color: #06b6d4; word-break: break-all; }
+        .log-payload { color: #10b981; text-align: right; }
+        .log-empty { padding: 60px 20px; text-align: center; color: #64748b; }
+        .log-empty i { font-size: 40px; margin-bottom: 16px; display: block; opacity: 0.5; }
+
+        /* Analytics Page Styles */
+        .analytics-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; flex-wrap: wrap; gap: 12px; }
+        .time-range-selector { display: flex; gap: 8px; }
+        .time-btn { padding: 8px 16px; background: #1a1a24; border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 8px; color: #94a3b8; font-size: 12px; cursor: pointer; }
+        .time-btn:hover { background: #252532; color: #f1f5f9; }
+        .time-btn.active { background: rgba(59, 130, 246, 0.15); border-color: #3b82f6; color: #3b82f6; }
+        
+        .analytics-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
+        .analytics-stat { background: #111118; border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 12px; padding: 16px; }
+        .analytics-stat-label { font-size: 11px; color: #64748b; margin-bottom: 6px; }
+        .analytics-stat-value { font-size: 22px; font-weight: 700; font-family: monospace; }
+        .analytics-stat-change { font-size: 11px; margin-top: 4px; display: flex; align-items: center; gap: 4px; }
+        .analytics-stat-change.positive { color: #10b981; }
+        .analytics-stat-change.negative { color: #ef4444; }
+        
+        .analytics-charts { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-bottom: 24px; }
+        .analytics-chart { background: #111118; border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 16px; padding: 18px; }
+        .analytics-chart.full-width { grid-column: 1 / -1; }
+        
+        .data-table { width: 100%; border-collapse: collapse; }
+        .data-table th, .data-table td { padding: 12px 16px; text-align: left; border-bottom: 1px solid rgba(255, 255, 255, 0.05); }
+        .data-table th { font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 1px; background: #1a1a24; }
+        .data-table td { font-size: 13px; font-family: monospace; }
+        .data-table tr:hover { background: #1a1a24; }
+        
+        .db-status { display: flex; align-items: center; gap: 8px; font-size: 12px; color: #64748b; }
+        .db-status.active { color: #10b981; }
+        .db-status i { font-size: 14px; }
+
+        @media (max-width: 1200px) { .stats-grid, .analytics-stats { grid-template-columns: repeat(2, 1fr); } .charts-grid, .analytics-charts { grid-template-columns: 1fr; } .threshold-grid { grid-template-columns: 1fr; } }
+        @media (max-width: 800px) { .rooms-grid { grid-template-columns: 1fr; } }
+        @media (max-width: 700px) { .sidebar { display: none; } .main-content { margin-left: 0; } .stats-grid, .analytics-stats { grid-template-columns: 1fr; } }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+    
+    <script type="text/babel">
+        const { useState, useEffect, useCallback, useRef } = React;
+
+        // ============================================================
+        // CONFIGURATION
+        // ============================================================
+        const CONFIG = {
+            broker: {
+                host: '10.213.232.79',
+                port: 9001,
+                protocol: 'ws',
+                username: 'shaun',
+                password: '590121001'  // <-- CHANGE THIS TO YOUR REAL MQTT PASSWORD
+            },
+            adminPassword: 'FISEA4IoT',  // Admin password for threshold commands
+            network: {
+                gateway: '10.213.232.79',
+                yourIP: '10.213.232.219',
+                wifi: 'Shaunline'
+            }
+        };
+
+        const CLASSROOMS = [
+            { id: 'classroom_orange', name: 'Classroom Orange', color: '#f97316' },
+            { id: 'classroom_white', name: 'Classroom White', color: '#ffffff' }
+        ];
+
+        const TOPICS = {
+            temperature: (id) => `cesi/lyon/${id}/temperature`,
+            humidity: (id) => `cesi/lyon/${id}/humidity`,
+            pressure: (id) => `cesi/lyon/${id}/pressure`,
+            gateway: 'cesi/lyon/gateway'
+        };
+
+        // ============================================================
+        // INDEXEDDB DATABASE HOOK
+        // ============================================================
+        const useDatabase = () => {
+            const dbRef = useRef(null);
+            const [isReady, setIsReady] = useState(false);
+            const [recordCount, setRecordCount] = useState(0);
+
+            // Initialize database
+            useEffect(() => {
+                const request = indexedDB.open('BreathEasyDB', 1);
+
+                request.onerror = () => console.error('Database error');
+
+                request.onsuccess = (event) => {
+                    dbRef.current = event.target.result;
+                    setIsReady(true);
+                    updateRecordCount();
+                };
+
+                request.onupgradeneeded = (event) => {
+                    const db = event.target.result;
+                    
+                    // Create readings store
+                    if (!db.objectStoreNames.contains('readings')) {
+                        const store = db.createObjectStore('readings', { keyPath: 'id', autoIncrement: true });
+                        store.createIndex('timestamp', 'timestamp', { unique: false });
+                        store.createIndex('roomId', 'roomId', { unique: false });
+                        store.createIndex('date', 'date', { unique: false });
+                    }
+                };
+            }, []);
+
+            const updateRecordCount = () => {
+                if (!dbRef.current) return;
+                const transaction = dbRef.current.transaction(['readings'], 'readonly');
+                const store = transaction.objectStore('readings');
+                const countRequest = store.count();
+                countRequest.onsuccess = () => setRecordCount(countRequest.result);
+            };
+
+            // Save a reading
+            const saveReading = useCallback((roomId, temp, humidity, pressure) => {
+                if (!dbRef.current) return;
+
+                const now = new Date();
+                const reading = {
+                    roomId,
+                    timestamp: now.getTime(),
+                    date: now.toISOString().split('T')[0],
+                    hour: now.getHours(),
+                    temp,
+                    humidity,
+                    pressure
+                };
+
+                const transaction = dbRef.current.transaction(['readings'], 'readwrite');
+                const store = transaction.objectStore('readings');
+                store.add(reading);
+                
+                transaction.oncomplete = () => updateRecordCount();
+            }, []);
+
+            // Get readings for a time range
+            const getReadings = useCallback((startTime, endTime) => {
+                return new Promise((resolve) => {
+                    if (!dbRef.current) { resolve([]); return; }
+
+                    const transaction = dbRef.current.transaction(['readings'], 'readonly');
+                    const store = transaction.objectStore('readings');
+                    const index = store.index('timestamp');
+                    const range = IDBKeyRange.bound(startTime, endTime);
+                    const request = index.getAll(range);
+
+                    request.onsuccess = () => resolve(request.result);
+                    request.onerror = () => resolve([]);
+                });
+            }, []);
+
+            // Get daily averages
+            const getDailyAverages = useCallback(async (days = 7) => {
+                const endTime = Date.now();
+                const startTime = endTime - (days * 24 * 60 * 60 * 1000);
+                const readings = await getReadings(startTime, endTime);
+
+                // Group by date
+                const byDate = {};
+                readings.forEach(r => {
+                    if (!byDate[r.date]) {
+                        byDate[r.date] = { temps: [], humidities: [], pressures: [], count: 0 };
+                    }
+                    byDate[r.date].temps.push(r.temp);
+                    byDate[r.date].humidities.push(r.humidity);
+                    byDate[r.date].pressures.push(r.pressure);
+                    byDate[r.date].count++;
+                });
+
+                // Calculate averages
+                return Object.entries(byDate).map(([date, data]) => ({
+                    date,
+                    avgTemp: data.temps.reduce((a, b) => a + b, 0) / data.temps.length,
+                    avgHumidity: data.humidities.reduce((a, b) => a + b, 0) / data.humidities.length,
+                    avgPressure: data.pressures.reduce((a, b) => a + b, 0) / data.pressures.length,
+                    tempVariance: calculateVariance(data.temps),
+                    humidityVariance: calculateVariance(data.humidities),
+                    count: data.count
+                })).sort((a, b) => a.date.localeCompare(b.date));
+            }, [getReadings]);
+
+            // Clear all data
+            const clearData = useCallback(() => {
+                if (!dbRef.current) return;
+                const transaction = dbRef.current.transaction(['readings'], 'readwrite');
+                const store = transaction.objectStore('readings');
+                store.clear();
+                transaction.oncomplete = () => {
+                    setRecordCount(0);
+                    alert('All data cleared!');
+                };
+            }, []);
+
+            // Export to CSV
+            const exportCSV = useCallback(async () => {
+                const readings = await getReadings(0, Date.now());
+                if (readings.length === 0) {
+                    alert('No data to export');
+                    return;
+                }
+
+                const headers = 'Timestamp,Date,Hour,Room,Temperature,Humidity,Pressure\n';
+                const rows = readings.map(r => 
+                    `${new Date(r.timestamp).toISOString()},${r.date},${r.hour},${r.roomId},${r.temp},${r.humidity},${r.pressure}`
+                ).join('\n');
+
+                const csv = headers + rows;
+                const blob = new Blob([csv], { type: 'text/csv' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `breatheasy_data_${new Date().toISOString().split('T')[0]}.csv`;
+                a.click();
+                URL.revokeObjectURL(url);
+            }, [getReadings]);
+
+            return { isReady, recordCount, saveReading, getReadings, getDailyAverages, clearData, exportCSV };
+        };
+
+        // Calculate variance helper
+        const calculateVariance = (arr) => {
+            if (arr.length < 2) return 0;
+            const mean = arr.reduce((a, b) => a + b, 0) / arr.length;
+            return Math.sqrt(arr.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / arr.length);
+        };
+
+        // ============================================================
+        // MQTT HOOK
+        // ============================================================
+        const useMQTT = () => {
+            const [client, setClient] = useState(null);
+            const [connected, setConnected] = useState(false);
+            const [connecting, setConnecting] = useState(false);
+            const [error, setError] = useState(null);
+            const [messages, setMessages] = useState([]);
+            const handlers = useRef({});
+
+            const connect = useCallback((brokerConfig) => {
+                setConnecting(true);
+                setError(null);
+
+                try {
+                    const url = `${brokerConfig.protocol}://${brokerConfig.host}:${brokerConfig.port}`;
+
+                    const mqttClient = mqtt.connect(url, {
+                        clientId: 'breatheasy_' + Math.random().toString(16).substr(2, 8),
+                        username: brokerConfig.username,
+                        password: brokerConfig.password,
+                        clean: true,
+                        connectTimeout: 15000,
+                        reconnectPeriod: 3000
+                    });
+
+                    mqttClient.on('connect', () => {
+                        setConnected(true);
+                        setConnecting(false);
+                        CLASSROOMS.forEach(room => {
+                            [TOPICS.temperature(room.id), TOPICS.humidity(room.id), TOPICS.pressure(room.id)].forEach(topic => {
+                                mqttClient.subscribe(topic);
+                            });
+                        });
+                    });
+
+                    mqttClient.on('message', (topic, message) => {
+                        const payload = message.toString();
+                        const timestamp = new Date().toLocaleTimeString();
+                        setMessages(prev => [...prev.slice(-200), { topic, payload, timestamp }]);
+                        if (handlers.current[topic]) handlers.current[topic](payload);
+                    });
+
+                    mqttClient.on('error', (err) => {
+                        setError(err.message);
+                        setConnecting(false);
+                    });
+
+                    mqttClient.on('close', () => setConnected(false));
+
+                    setClient(mqttClient);
+                } catch (err) {
+                    setError(err.message);
+                    setConnecting(false);
+                }
+            }, []);
+
+            const disconnect = useCallback(() => {
+                if (client) { client.end(); setClient(null); setConnected(false); }
+            }, [client]);
+
+            const publish = useCallback((topic, message) => {
+                if (client && connected) {
+                    const payload = typeof message === 'object' ? JSON.stringify(message) : message;
+                    client.publish(topic, payload, { qos: 1 });
+                    setMessages(prev => [...prev.slice(-200), { topic, payload, timestamp: new Date().toLocaleTimeString(), sent: true }]);
+                }
+            }, [client, connected]);
+
+            const subscribe = useCallback((topic, handler) => { handlers.current[topic] = handler; }, []);
+
+            return { connected, connecting, error, messages, connect, disconnect, publish, subscribe };
+        };
+
+        // ============================================================
+        // LOGIN COMPONENT
+        // ============================================================
+        const Login = ({ onLogin }) => {
+            const [name, setName] = useState('');
+            const [role, setRole] = useState('viewer');
+            const [mqttPassword, setMqttPassword] = useState(CONFIG.broker.password);
+            const [adminPassword, setAdminPassword] = useState(CONFIG.adminPassword);
+            const [error, setError] = useState('');
+
+            const handleSubmit = (e) => {
+                e.preventDefault();
+                if (!name.trim()) { setError('Please enter your name'); return; }
+                if (role === 'admin' && !adminPassword.trim()) { setError('Admin password required'); return; }
+                onLogin({ name: name.trim(), role, broker: { ...CONFIG.broker, password: mqttPassword }, adminPassword });
+            };
+
+            return (
+                <div className="login-wrapper">
+                    <div className="login-card">
+                        <div className="logo">
+                            <div className="logo-icon"><i className="fas fa-wind"></i></div>
+                            <h1>BreathEasy</h1>
+                            <p>CESI Lyon Climate Control</p>
+                        </div>
+                        {error && <div className="error-msg"><i className="fas fa-exclamation-circle"></i> {error}</div>}
+                        <form onSubmit={handleSubmit}>
+                            <div className="config-box">
+                                <div className="config-title"><i className="fas fa-network-wired"></i> Network <span className="config-badge">CESI IoT</span></div>
+                                <div className="config-info">
+                                    <strong>Broker:</strong> <code>{CONFIG.broker.host}:{CONFIG.broker.port}</code><br/>
+                                    <strong>Your IP:</strong> <code>{CONFIG.network.yourIP}</code>
+                                </div>
+                            </div>
+                            <div className="form-group">
+                                <label>MQTT Password</label>
+                                <div className="input-wrapper"><i className="fas fa-key"></i>
+                                    <input type="password" className="form-input" value={mqttPassword} onChange={(e) => setMqttPassword(e.target.value)} />
+                                </div>
+                            </div>
+                            <div className="form-group">
+                                <label>Your Name</label>
+                                <div className="input-wrapper"><i className="fas fa-user"></i>
+                                    <input type="text" className="form-input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Enter your name" />
+                                </div>
+                            </div>
+                            <div className="form-group">
+                                <label>Select Role</label>
+                                <div className="roles">
+                                    <div className={`role-btn viewer ${role === 'viewer' ? 'active' : ''}`} onClick={() => setRole('viewer')}>
+                                        <i className="fas fa-eye"></i><span>Viewer</span>
+                                    </div>
+                                    <div className={`role-btn admin ${role === 'admin' ? 'active' : ''}`} onClick={() => setRole('admin')}>
+                                        <i className="fas fa-user-shield"></i><span>Admin</span>
+                                    </div>
+                                </div>
+                            </div>
+                            {role === 'admin' && (
+                                <div className="form-group">
+                                    <label>Admin Password</label>
+                                    <div className="input-wrapper"><i className="fas fa-lock"></i>
+                                        <input type="password" className="form-input" value={adminPassword} onChange={(e) => setAdminPassword(e.target.value)} />
+                                    </div>
+                                </div>
+                            )}
+                            <button type="submit" className="login-btn">Connect <i className="fas fa-arrow-right"></i></button>
+                        </form>
+                    </div>
+                </div>
+            );
+        };
+
+        // ============================================================
+        // DASHBOARD COMPONENT
+        // ============================================================
+        const Dashboard = ({ user, onLogout }) => {
+            const { connected, connecting, error, messages, connect, disconnect, publish, subscribe } = useMQTT();
+            const db = useDatabase();
+
+            const [sensorData, setSensorData] = useState(
+                CLASSROOMS.reduce((acc, room) => ({ ...acc, [room.id]: { temp: 0, humidity: 0, pressure: 0, lastUpdate: null, active: false } }), {})
+            );
+            const [thresholds, setThresholds] = useState({ ac: 30, heat: 20, humidity: 50 });
+            const [pendingThresholds, setPendingThresholds] = useState({ ac: 30, heat: 20, humidity: 50 });
+            const [activePage, setActivePage] = useState('dashboard');
+            const [history, setHistory] = useState([]);
+            const [currentTime, setCurrentTime] = useState(new Date());
+            
+            // Analytics state
+            const [timeRange, setTimeRange] = useState('week');
+            const [dailyData, setDailyData] = useState([]);
+            const [analyticsLoading, setAnalyticsLoading] = useState(false);
+
+            // Save interval ref
+            const saveIntervalRef = useRef(null);
+
+            useEffect(() => { connect(user.broker); return () => disconnect(); }, []);
+            useEffect(() => { const t = setInterval(() => setCurrentTime(new Date()), 1000); return () => clearInterval(t); }, []);
+
+            // Set up MQTT handlers
+            useEffect(() => {
+                CLASSROOMS.forEach(room => {
+                    subscribe(TOPICS.temperature(room.id), (value) => {
+                        setSensorData(prev => ({
+                            ...prev,
+                            [room.id]: { ...prev[room.id], temp: parseFloat(value), lastUpdate: Date.now(), active: true }
+                        }));
+                    });
+                    subscribe(TOPICS.humidity(room.id), (value) => {
+                        setSensorData(prev => ({ ...prev, [room.id]: { ...prev[room.id], humidity: parseFloat(value) } }));
+                    });
+                    subscribe(TOPICS.pressure(room.id), (value) => {
+                        setSensorData(prev => ({ ...prev, [room.id]: { ...prev[room.id], pressure: parseFloat(value) } }));
+                    });
+                });
+            }, [subscribe]);
+
+            // Save readings to database every 30 seconds
+            useEffect(() => {
+                if (!db.isReady) return;
+
+                saveIntervalRef.current = setInterval(() => {
+                    Object.entries(sensorData).forEach(([roomId, data]) => {
+                        if (data.active && data.temp > 0) {
+                            db.saveReading(roomId, data.temp, data.humidity, data.pressure);
+                        }
+                    });
+                }, 30000); // Save every 30 seconds
+
+                return () => clearInterval(saveIntervalRef.current);
+            }, [db.isReady, sensorData, db.saveReading]);
+
+            // Track history for live chart
+            useEffect(() => {
+                const activeRooms = Object.values(sensorData).filter(d => d.active);
+                if (activeRooms.length > 0) {
+                    const avgTemp = activeRooms.reduce((sum, d) => sum + d.temp, 0) / activeRooms.length;
+                    setHistory(prev => [...prev.slice(-119), { time: Date.now(), temp: avgTemp }]);
+                }
+            }, [sensorData]);
+
+            // Load analytics data
+            useEffect(() => {
+                if (activePage === 'analytics' && db.isReady) {
+                    loadAnalytics();
+                }
+            }, [activePage, timeRange, db.isReady]);
+
+            const loadAnalytics = async () => {
+                setAnalyticsLoading(true);
+                const days = timeRange === 'today' ? 1 : timeRange === 'week' ? 7 : 30;
+                const data = await db.getDailyAverages(days);
+                setDailyData(data);
+                setAnalyticsLoading(false);
+            };
+
+            const sendThresholds = () => {
+                publish(TOPICS.gateway, { password: user.adminPassword, ac: pendingThresholds.ac, heat: pendingThresholds.heat, humidity: pendingThresholds.humidity });
+                setThresholds(pendingThresholds);
+                alert('Thresholds sent!');
+            };
+
+            const getRoomStatus = (data) => {
+                if (!data.active) return 'offline';
+                if (data.temp >= thresholds.ac || data.temp <= thresholds.heat) return 'critical';
+                if (data.temp >= thresholds.ac - 2 || data.temp <= thresholds.heat + 2) return 'warning';
+                return 'optimal';
+            };
+
+            const variance = (() => {
+                if (history.length < 2) return 0;
+                const temps = history.map(h => h.temp);
+                const mean = temps.reduce((a, b) => a + b, 0) / temps.length;
+                return Math.sqrt(temps.reduce((sum, t) => sum + Math.pow(t - mean, 2), 0) / temps.length);
+            })();
+
+            const varianceClass = variance < 1 ? 'low' : variance < 2.5 ? 'medium' : 'high';
+            const varianceStatus = variance < 1 ? 'stable' : variance < 2.5 ? 'moderate' : 'unstable';
+
+            const activeRooms = Object.values(sensorData).filter(d => d.active);
+            const avgTemp = activeRooms.length > 0 ? activeRooms.reduce((sum, d) => sum + d.temp, 0) / activeRooms.length : 0;
+            const avgHumidity = activeRooms.length > 0 ? activeRooms.reduce((sum, d) => sum + d.humidity, 0) / activeRooms.length : 0;
+
+            const statusToDotClass = { optimal: 'online', warning: 'warning', critical: 'critical', offline: 'offline' };
+
+            // Calculate analytics stats
+            const analyticsStats = (() => {
+                if (dailyData.length === 0) return { avgTemp: 0, avgHumidity: 0, avgVariance: 0, totalReadings: 0 };
+                return {
+                    avgTemp: dailyData.reduce((s, d) => s + d.avgTemp, 0) / dailyData.length,
+                    avgHumidity: dailyData.reduce((s, d) => s + d.avgHumidity, 0) / dailyData.length,
+                    avgVariance: dailyData.reduce((s, d) => s + d.tempVariance, 0) / dailyData.length,
+                    totalReadings: dailyData.reduce((s, d) => s + d.count, 0)
+                };
+            })();
+
+            return (
+                <div className="dashboard">
+                    <div className={`banner ${connected ? 'connected' : connecting ? 'connecting' : 'disconnected'}`}>
+                        <i className={`fas ${connected ? 'fa-check-circle' : connecting ? 'fa-spinner fa-spin' : 'fa-times-circle'}`}></i>
+                        {connected ? `Connected to ${user.broker.host}` : connecting ? 'Connecting...' : `Disconnected${error ? ' - ' + error : ''}`}
+                        {!connected && !connecting && <button onClick={() => connect(user.broker)}>Reconnect</button>}
+                    </div>
+
+                    <div className="dashboard-body">
+                        <div className="sidebar">
+                            <div className="sidebar-header">
+                                <div className="sidebar-logo">
+                                    <div className="sidebar-logo-icon"><i className="fas fa-wind"></i></div>
+                                    <div><h2>BreathEasy</h2><span>CESI Lyon</span></div>
+                                </div>
+                            </div>
+                            <div className="sidebar-nav">
+                                <div className="nav-section">
+                                    <div className="nav-title">Menu</div>
+                                    <div className={`nav-item ${activePage === 'dashboard' ? 'active' : ''}`} onClick={() => setActivePage('dashboard')}>
+                                        <i className="fas fa-th-large"></i><span>Dashboard</span>
+                                    </div>
+                                    <div className={`nav-item ${activePage === 'analytics' ? 'active' : ''}`} onClick={() => setActivePage('analytics')}>
+                                        <i className="fas fa-chart-area"></i><span>Analytics</span>
+                                    </div>
+                                    {user.role === 'admin' && (
+                                        <div className={`nav-item ${activePage === 'thresholds' ? 'active' : ''}`} onClick={() => setActivePage('thresholds')}>
+                                            <i className="fas fa-sliders-h"></i><span>Thresholds</span>
+                                        </div>
+                                    )}
+                                    <div className={`nav-item ${activePage === 'logs' ? 'active' : ''}`} onClick={() => setActivePage('logs')}>
+                                        <i className="fas fa-terminal"></i><span>MQTT Logs</span>
+                                    </div>
+                                </div>
+                                <div className="nav-section">
+                                    <div className="nav-title">Classrooms</div>
+                                    {CLASSROOMS.map(room => (
+                                        <div key={room.id} className="nav-item">
+                                            <span className={`status-dot ${statusToDotClass[getRoomStatus(sensorData[room.id])]}`}></span>
+                                            <span>{room.name}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                                <div className="nav-section">
+                                    <div className="nav-title">Database</div>
+                                    <div className={`db-status ${db.isReady ? 'active' : ''}`}>
+                                        <i className={`fas ${db.isReady ? 'fa-database' : 'fa-spinner fa-spin'}`}></i>
+                                        {db.isReady ? `${db.recordCount} records` : 'Loading...'}
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="sidebar-footer">
+                                <div className="user-card">
+                                    <div className={`avatar ${user.role}`}>{user.name.charAt(0).toUpperCase()}</div>
+                                    <div className="user-info"><h4>{user.name}</h4><span>{user.role === 'admin' ? 'Admin' : 'Viewer'}</span></div>
+                                    <button className="logout-btn" onClick={onLogout}><i className="fas fa-sign-out-alt"></i></button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="main-content">
+                            <div className="header">
+                                <div className="header-left">
+                                    <h1>{activePage === 'dashboard' ? 'Dashboard' : activePage === 'analytics' ? 'Analytics' : activePage === 'thresholds' ? 'Thresholds' : 'MQTT Logs'}</h1>
+                                    <span>Real-time climate monitoring</span>
+                                </div>
+                                <div className="header-right">
+                                    <span className="time-display">{currentTime.toLocaleTimeString()}</span>
+                                    <div className={`live-badge ${connected ? 'online' : 'offline'}`}>
+                                        <span className={`pulse-dot ${connected ? 'online' : 'offline'}`}></span>
+                                        {connected ? 'Live' : 'Offline'}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="content">
+                                {/* Dashboard Page */}
+                                {activePage === 'dashboard' && (
+                                    <>
+                                        <div className="stats-grid">
+                                            <div className="stat-card blue">
+                                                <div className="stat-icon"><i className="fas fa-thermometer-half"></i></div>
+                                                <div className="stat-value">{avgTemp.toFixed(1)}°C</div>
+                                                <div className="stat-label">Avg Temperature</div>
+                                                <div className="stat-sub">AC at {thresholds.ac}°C</div>
+                                            </div>
+                                            <div className="stat-card green">
+                                                <div className="stat-icon"><i className="fas fa-tint"></i></div>
+                                                <div className="stat-value">{avgHumidity.toFixed(0)}%</div>
+                                                <div className="stat-label">Avg Humidity</div>
+                                                <div className="stat-sub">Fan at {thresholds.humidity}%</div>
+                                            </div>
+                                            <div className="stat-card orange">
+                                                <div className="stat-icon"><i className="fas fa-fire"></i></div>
+                                                <div className="stat-value">{thresholds.heat}°C</div>
+                                                <div className="stat-label">Heat Threshold</div>
+                                                <div className="stat-sub">Heater below</div>
+                                            </div>
+                                            <div className="stat-card purple">
+                                                <div className="stat-icon"><i className="fas fa-database"></i></div>
+                                                <div className="stat-value">{db.recordCount}</div>
+                                                <div className="stat-label">Stored Readings</div>
+                                                <div className="stat-sub">{db.isReady ? 'Database active' : 'Loading...'}</div>
+                                            </div>
+                                        </div>
+
+                                        <div className="section">
+                                            <div className="section-header">
+                                                <div className="section-title"><i className="fas fa-building"></i> Classrooms</div>
+                                            </div>
+                                            <div className="rooms-grid">
+                                                {CLASSROOMS.map(room => {
+                                                    const data = sensorData[room.id];
+                                                    const status = getRoomStatus(data);
+                                                    const acOn = data.temp >= thresholds.ac && data.temp !== 0;
+                                                    const heatOn = data.temp <= thresholds.heat && data.temp !== 0;
+                                                    const fanOn = data.humidity >= thresholds.humidity && data.humidity !== 0;
+
+                                                    return (
+                                                        <div key={room.id} className={`room-card ${!data.active ? 'inactive' : ''}`}>
+                                                            <div className="room-header">
+                                                                <div className="room-info">
+                                                                    <h3><span className="room-color-dot" style={{ background: room.color, border: room.color === '#ffffff' ? '2px solid #444' : 'none' }}></span>{room.name}</h3>
+                                                                    <span>{room.id}</span>
+                                                                </div>
+                                                                <span className={`room-badge ${status}`}>{status}</span>
+                                                            </div>
+                                                            <div className="room-body">
+                                                                <div className="metrics-grid">
+                                                                    <div className="metric-box">
+                                                                        <div className="metric-icon temp"><i className="fas fa-thermometer-half"></i></div>
+                                                                        <div className="metric-value">{data.temp.toFixed(1)}°</div>
+                                                                        <div className="metric-label">Temperature</div>
+                                                                    </div>
+                                                                    <div className="metric-box">
+                                                                        <div className="metric-icon humidity"><i className="fas fa-tint"></i></div>
+                                                                        <div className="metric-value">{data.humidity.toFixed(0)}%</div>
+                                                                        <div className="metric-label">Humidity</div>
+                                                                    </div>
+                                                                    <div className="metric-box">
+                                                                        <div className="metric-icon pressure"><i className="fas fa-compress-arrows-alt"></i></div>
+                                                                        <div className="metric-value">{data.pressure.toFixed(0)}</div>
+                                                                        <div className="metric-label">Pressure</div>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                            <div className="room-footer">
+                                                                <div className="actuators">
+                                                                    <div className={`actuator ${acOn ? 'on' : 'off'}`}><i className="fas fa-snowflake"></i> AC</div>
+                                                                    <div className={`actuator ${heatOn ? 'on' : 'off'}`}><i className="fas fa-fire"></i> Heat</div>
+                                                                    <div className={`actuator ${fanOn ? 'on' : 'off'}`}><i className="fas fa-fan"></i> Fan</div>
+                                                                </div>
+                                                                <div className="last-update">{data.lastUpdate ? `${Math.round((Date.now() - data.lastUpdate) / 1000)}s ago` : 'Waiting...'}</div>
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+
+                                        <div className="charts-grid">
+                                            <div className="chart-card">
+                                                <div className="chart-header">
+                                                    <div className="chart-title"><i className="fas fa-chart-line"></i> Live Temperature</div>
+                                                    <div className="chart-legend"><div className="legend-item"><span className="legend-dot" style={{ background: '#06b6d4' }}></span>Avg</div></div>
+                                                </div>
+                                                <div className="chart-area">
+                                                    <svg viewBox="0 0 100 40" preserveAspectRatio="none" style={{ width: '100%', height: '100%' }}>
+                                                        {history.length > 1 && <polyline points={history.map((h, i) => `${(i / (history.length - 1)) * 100},${40 - ((h.temp - 10) / 35) * 40}`).join(' ')} fill="none" stroke="#06b6d4" strokeWidth="1.5" />}
+                                                    </svg>
+                                                </div>
+                                            </div>
+                                            <div className="chart-card">
+                                                <div className="chart-header"><div className="chart-title"><i className="fas fa-chart-bar"></i> Variance</div></div>
+                                                <div className="variance-box">
+                                                    <div className="variance-header">
+                                                        <span className="variance-label">Temperature</span>
+                                                        <span className={`variance-status ${varianceStatus}`}>{varianceStatus.toUpperCase()}</span>
+                                                    </div>
+                                                    <div className={`variance-value ${varianceClass}`}>{variance.toFixed(2)}</div>
+                                                    <div className="variance-bar"><div className={`variance-fill ${varianceClass}`} style={{ width: `${Math.min(variance * 20, 100)}%` }}></div></div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </>
+                                )}
+
+                                {/* Analytics Page */}
+                                {activePage === 'analytics' && (
+                                    <>
+                                        <div className="analytics-header">
+                                            <div className="time-range-selector">
+                                                <button className={`time-btn ${timeRange === 'today' ? 'active' : ''}`} onClick={() => setTimeRange('today')}>Today</button>
+                                                <button className={`time-btn ${timeRange === 'week' ? 'active' : ''}`} onClick={() => setTimeRange('week')}>Week</button>
+                                                <button className={`time-btn ${timeRange === 'month' ? 'active' : ''}`} onClick={() => setTimeRange('month')}>Month</button>
+                                            </div>
+                                            <div style={{ display: 'flex', gap: '10px' }}>
+                                                <button className="btn btn-secondary" onClick={db.exportCSV}><i className="fas fa-download"></i> Export CSV</button>
+                                                <button className="btn btn-danger" onClick={db.clearData}><i className="fas fa-trash"></i> Clear Data</button>
+                                            </div>
+                                        </div>
+
+                                        <div className="analytics-stats">
+                                            <div className="analytics-stat">
+                                                <div className="analytics-stat-label">Avg Temperature</div>
+                                                <div className="analytics-stat-value" style={{ color: '#f97316' }}>{analyticsStats.avgTemp.toFixed(1)}°C</div>
+                                            </div>
+                                            <div className="analytics-stat">
+                                                <div className="analytics-stat-label">Avg Humidity</div>
+                                                <div className="analytics-stat-value" style={{ color: '#06b6d4' }}>{analyticsStats.avgHumidity.toFixed(0)}%</div>
+                                            </div>
+                                            <div className="analytics-stat">
+                                                <div className="analytics-stat-label">Avg Variance</div>
+                                                <div className="analytics-stat-value" style={{ color: analyticsStats.avgVariance < 1 ? '#10b981' : analyticsStats.avgVariance < 2.5 ? '#f97316' : '#ef4444' }}>
+                                                    {analyticsStats.avgVariance.toFixed(2)}
+                                                </div>
+                                                <div className={`analytics-stat-change ${analyticsStats.avgVariance < 2 ? 'positive' : 'negative'}`}>
+                                                    <i className={`fas fa-arrow-${analyticsStats.avgVariance < 2 ? 'down' : 'up'}`}></i>
+                                                    {analyticsStats.avgVariance < 2 ? 'Stable' : 'Unstable'}
+                                                </div>
+                                            </div>
+                                            <div className="analytics-stat">
+                                                <div className="analytics-stat-label">Total Readings</div>
+                                                <div className="analytics-stat-value" style={{ color: '#8b5cf6' }}>{analyticsStats.totalReadings}</div>
+                                            </div>
+                                        </div>
+
+                                        <div className="analytics-charts">
+                                            <div className="analytics-chart full-width">
+                                                <div className="chart-header">
+                                                    <div className="chart-title"><i className="fas fa-chart-line"></i> Daily Temperature Trend</div>
+                                                    <div className="chart-legend">
+                                                        <div className="legend-item"><span className="legend-dot" style={{ background: '#f97316' }}></span>Avg Temp</div>
+                                                        <div className="legend-item"><span className="legend-dot" style={{ background: '#06b6d4' }}></span>Variance</div>
+                                                    </div>
+                                                </div>
+                                                <div className="chart-area" style={{ height: '250px' }}>
+                                                    {analyticsLoading ? (
+                                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#64748b' }}>
+                                                            <i className="fas fa-spinner fa-spin"></i>&nbsp; Loading...
+                                                        </div>
+                                                    ) : dailyData.length === 0 ? (
+                                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#64748b' }}>
+                                                            No data yet. Readings are saved every 30 seconds.
+                                                        </div>
+                                                    ) : (
+                                                        <svg viewBox="0 0 100 50" preserveAspectRatio="none" style={{ width: '100%', height: '100%' }}>
+                                                            {/* Temperature line */}
+                                                            <polyline
+                                                                points={dailyData.map((d, i) => `${(i / Math.max(dailyData.length - 1, 1)) * 100},${50 - ((d.avgTemp - 10) / 35) * 50}`).join(' ')}
+                                                                fill="none" stroke="#f97316" strokeWidth="2"
+                                                            />
+                                                            {/* Variance line */}
+                                                            <polyline
+                                                                points={dailyData.map((d, i) => `${(i / Math.max(dailyData.length - 1, 1)) * 100},${50 - (d.tempVariance / 5) * 50}`).join(' ')}
+                                                                fill="none" stroke="#06b6d4" strokeWidth="1.5" strokeDasharray="4,2"
+                                                            />
+                                                        </svg>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {dailyData.length > 0 && (
+                                            <div className="chart-card">
+                                                <div className="chart-header">
+                                                    <div className="chart-title"><i className="fas fa-table"></i> Daily Summary</div>
+                                                </div>
+                                                <table className="data-table">
+                                                    <thead>
+                                                        <tr>
+                                                            <th>Date</th>
+                                                            <th>Avg Temp</th>
+                                                            <th>Avg Humidity</th>
+                                                            <th>Variance</th>
+                                                            <th>Readings</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        {dailyData.slice().reverse().map((day, i) => (
+                                                            <tr key={i}>
+                                                                <td>{day.date}</td>
+                                                                <td style={{ color: '#f97316' }}>{day.avgTemp.toFixed(1)}°C</td>
+                                                                <td style={{ color: '#06b6d4' }}>{day.avgHumidity.toFixed(0)}%</td>
+                                                                <td style={{ color: day.tempVariance < 1 ? '#10b981' : day.tempVariance < 2.5 ? '#f97316' : '#ef4444' }}>
+                                                                    {day.tempVariance.toFixed(2)}
+                                                                </td>
+                                                                <td>{day.count}</td>
+                                                            </tr>
+                                                        ))}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        )}
+                                    </>
+                                )}
+
+                                {/* Thresholds Page */}
+                                {activePage === 'thresholds' && user.role === 'admin' && (
+                                    <div className="section">
+                                        <div className="admin-card">
+                                            <div className="admin-title"><i className="fas fa-sliders-h"></i> Threshold Control</div>
+                                            <div className="admin-desc">Adjust and send to <code>{TOPICS.gateway}</code></div>
+                                            <div className="threshold-grid">
+                                                <div className="threshold-box">
+                                                    <div className="threshold-header">
+                                                        <div><div className="threshold-label">AC Temperature</div><div className="threshold-desc">AC ON when ≥</div></div>
+                                                        <div className="threshold-value temp">{pendingThresholds.ac}°C</div>
+                                                    </div>
+                                                    <input type="range" className="slider" min="25" max="40" value={pendingThresholds.ac} onChange={(e) => setPendingThresholds(p => ({ ...p, ac: +e.target.value }))} />
+                                                    <div className="slider-range"><span>25°C</span><span>40°C</span></div>
+                                                </div>
+                                                <div className="threshold-box">
+                                                    <div className="threshold-header">
+                                                        <div><div className="threshold-label">Heater Temperature</div><div className="threshold-desc">Heater ON when ≤</div></div>
+                                                        <div className="threshold-value cool">{pendingThresholds.heat}°C</div>
+                                                    </div>
+                                                    <input type="range" className="slider" min="15" max="35" value={pendingThresholds.heat} onChange={(e) => setPendingThresholds(p => ({ ...p, heat: +e.target.value }))} />
+                                                    <div className="slider-range"><span>15°C</span><span>35°C</span></div>
+                                                </div>
+                                                <div className="threshold-box">
+                                                    <div className="threshold-header">
+                                                        <div><div className="threshold-label">Humidity Fan</div><div className="threshold-desc">Fan ON when ≥</div></div>
+                                                        <div className="threshold-value humidity">{pendingThresholds.humidity}%</div>
+                                                    </div>
+                                                    <input type="range" className="slider" min="10" max="80" value={pendingThresholds.humidity} onChange={(e) => setPendingThresholds(p => ({ ...p, humidity: +e.target.value }))} />
+                                                    <div className="slider-range"><span>10%</span><span>80%</span></div>
+                                                </div>
+                                            </div>
+                                            <div className="save-section">
+                                                <div className="command-preview">
+                                                    <span className="label">Command:</span>
+                                                    {JSON.stringify({ password: '***', ac: pendingThresholds.ac, heat: pendingThresholds.heat, humidity: pendingThresholds.humidity })}
+                                                </div>
+                                                <button className="btn btn-primary" onClick={sendThresholds} disabled={!connected}>
+                                                    <i className="fas fa-paper-plane"></i> Send to Gateway
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Logs Page */}
+                                {activePage === 'logs' && (
+                                    <div className="log-card">
+                                        <div className="log-header">
+                                            <span className="log-title">MQTT Log</span>
+                                            <span style={{ fontSize: '12px', color: '#64748b' }}>{messages.length} messages</span>
+                                        </div>
+                                        <div className="log-body">
+                                            {messages.length === 0 ? (
+                                                <div className="log-empty"><i className="fas fa-inbox"></i>Waiting for messages...</div>
+                                            ) : (
+                                                messages.slice().reverse().map((msg, i) => (
+                                                    <div key={i} className={`log-entry ${msg.sent ? 'sent' : ''}`}>
+                                                        <span className="log-time">{msg.timestamp}</span>
+                                                        <span className="log-topic">{msg.topic}</span>
+                                                        <span className="log-payload">{msg.payload}</span>
+                                                    </div>
+                                                ))
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        // ============================================================
+        // MAIN APP
+        // ============================================================
+        const App = () => {
+            const [user, setUser] = useState(null);
+            return user ? <Dashboard user={user} onLogout={() => setUser(null)} /> : <Login onLogin={setUser} />;
+        };
+
+        ReactDOM.render(<App />, document.getElementById('root'));
+    </script>
+</body>
+</html>
